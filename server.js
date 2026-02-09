@@ -15,14 +15,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// SMTP Config - Environment variables ile değiştirilebilir
+// SMTP Config - Hardcoded for Alibaba DirectMail
 const SMTP_CONFIG = {
-    host: process.env.SMTP_HOST || 'smtpdm-ap-southeast-1.aliyuncs.com',
-    port: parseInt(process.env.SMTP_PORT) || 465,
+    host: 'smtpdm-ap-southeast-1.aliyuncs.com',
+    port: 465,
     secure: true,
     auth: {
-        user: process.env.SMTP_USER || 'noreply@8dayscafe.com',
-        pass: process.env.SMTP_PASS || 'Kx94mP72nS'
+        user: 'noreply@8dayscafe.com',
+        pass: 'Kx94mP72nS'
     },
     tls: {
         rejectUnauthorized: false
