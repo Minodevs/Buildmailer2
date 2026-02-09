@@ -21,7 +21,7 @@ const SMTP_CONFIG = {
     port: parseInt(process.env.SMTP_PORT) || 465,
     secure: true,
     auth: {
-        user: process.env.SMTP_USER || 'noreply@bruccolilayman.com',
+        user: process.env.SMTP_USER || 'noreply@8dayscafe.com',
         pass: process.env.SMTP_PASS || 'Kx94mP72nS'
     },
     tls: {
