@@ -106,7 +106,21 @@ app.get('/', (req, res) => {
             host: SMTP_CONFIG.host,
             port: SMTP_CONFIG.port
         },
-        scheduledJobs: scheduledJobs
+        scheduledJobs: scheduledJobs,
+        stats: {
+            parallelCount: 5,
+            batchSize: 100,
+            dailyLimit: 20000,
+            theoreticalSpeed: '~5 email/saniye = 300 email/dakika = 18,000 email/saat',
+            provider: 'Alibaba Cloud DirectMail',
+            features: {
+                parallelSending: true,
+                batchProcessing: true,
+                spamProtection: true,
+                autoUnsubscribe: true,
+                autoRefund: true
+            }
+        }
     });
 });
 
@@ -151,9 +165,71 @@ app.post('/api/send-email', async (req, res) => {
     res.json(result);
 });
 
-// API: Start bulk send (background)
+// Paralel gönderim fonksiyonu
+const sendBulkParallel = async (emailList, fromName, subject, html, parallelCount = 5) => {
+    let sent = 0;
+    let failed = 0;
+    const failedEmails = [];
+    
+    console.log(`[BULK] Starting parallel bulk send: ${emailList.length} emails, ${parallelCount} parallel`);
+    
+    // 100'lük batch'lere böl
+    const batchSize = 100;
+    for (let batchStart = 0; batchStart < emailList.length; batchStart += batchSize) {
+        const batch = emailList.slice(batchStart, Math.min(batchStart + batchSize, emailList.length));
+        console.log(`[BULK] Processing batch ${Math.floor(batchStart / batchSize) + 1}: ${batch.length} emails`);
+        
+        // Batch içinde paralel gönder
+        for (let i = 0; i < batch.length; i += parallelCount) {
+            const chunk = batch.slice(i, Math.min(i + parallelCount, batch.length));
+            
+            // Paralel gönder
+            const promises = chunk.map(email => 
+                sendEmail(email, fromName || 'Esbet', subject, html)
+                    .then(result => ({ email, result }))
+            );
+            
+            const results = await Promise.all(promises);
+            
+            // Sonuçları işle
+            for (const { email, result } of results) {
+                if (result.success) {
+                    sent++;
+                    console.log(`[BULK] ✓ ${email}`);
+                } else {
+                    failed++;
+                    failedEmails.push({ email, error: result.error, timestamp: new Date().toISOString() });
+                    console.log(`[BULK] ✗ ${email}: ${result.error}`);
+                }
+            }
+        }
+    }
+    
+    console.log(`[BULK] Completed! Sent: ${sent}, Failed: ${failed}`);
+    
+    // Failed email'leri kaydet (1 saat sonra refund için)
+    if (failedEmails.length > 0) {
+        const refundFile = path.join(dataDir, 'failed_emails.json');
+        let allFailed = [];
+        try {
+            if (fs.existsSync(refundFile)) {
+                allFailed = JSON.parse(fs.readFileSync(refundFile, 'utf8'));
+            }
+        } catch (err) {
+            console.error('[BULK] Error reading failed emails:', err);
+        }
+        
+        allFailed.push(...failedEmails);
+        fs.writeFileSync(refundFile, JSON.stringify(allFailed, null, 2));
+        console.log(`[BULK] Saved ${failedEmails.length} failed emails for refund`);
+    }
+    
+    return { sent, failed };
+};
+
+// API: Start bulk send (background with parallel processing)
 app.post('/api/send-bulk', async (req, res) => {
-    const { emails, fromName, subject, html, delay } = req.body;
+    const { emails, fromName, subject, html } = req.body;
     
     if (!emails || !subject || !html) {
         return res.json({ success: false, error: 'Missing required fields' });
@@ -170,27 +246,8 @@ app.post('/api/send-bulk', async (req, res) => {
     // Hemen response dön, gönderimi arka planda yap
     res.json({ success: true, message: 'Bulk send started in background', total: emailList.length });
     
-    // Background'da gönder
-    console.log(`[BULK] Starting bulk send: ${emailList.length} emails`);
-    let sent = 0;
-    let failed = 0;
-    
-    for (const email of emailList) {
-        const result = await sendEmail(email, fromName || 'Esbet', subject, html);
-        if (result.success) {
-            sent++;
-            console.log(`[BULK] ✓ ${email}`);
-        } else {
-            failed++;
-            console.log(`[BULK] ✗ ${email}: ${result.error}`);
-        }
-        
-        if (delay > 0) {
-            await new Promise(r => setTimeout(r, delay));
-        }
-    }
-    
-    console.log(`[BULK] Completed! Sent: ${sent}, Failed: ${failed}`);
+    // Background'da paralel gönder
+    sendBulkParallel(emailList, fromName, subject, html, 5);
 });
 
 // API: Schedule a job
