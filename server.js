@@ -151,6 +151,48 @@ app.post('/api/send-email', async (req, res) => {
     res.json(result);
 });
 
+// API: Start bulk send (background)
+app.post('/api/send-bulk', async (req, res) => {
+    const { emails, fromName, subject, html, delay } = req.body;
+    
+    if (!emails || !subject || !html) {
+        return res.json({ success: false, error: 'Missing required fields' });
+    }
+    
+    const emailList = emails.split(/[\n,;]+/)
+        .map(e => e.trim().toLowerCase())
+        .filter(e => e.includes('@') && e.includes('.'));
+    
+    if (emailList.length === 0) {
+        return res.json({ success: false, error: 'No valid emails' });
+    }
+    
+    // Hemen response dön, gönderimi arka planda yap
+    res.json({ success: true, message: 'Bulk send started in background', total: emailList.length });
+    
+    // Background'da gönder
+    console.log(`[BULK] Starting bulk send: ${emailList.length} emails`);
+    let sent = 0;
+    let failed = 0;
+    
+    for (const email of emailList) {
+        const result = await sendEmail(email, fromName || 'Esbet', subject, html);
+        if (result.success) {
+            sent++;
+            console.log(`[BULK] ✓ ${email}`);
+        } else {
+            failed++;
+            console.log(`[BULK] ✗ ${email}: ${result.error}`);
+        }
+        
+        if (delay > 0) {
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
+    
+    console.log(`[BULK] Completed! Sent: ${sent}, Failed: ${failed}`);
+});
+
 // API: Schedule a job
 app.post('/api/schedule', (req, res) => {
     const { emails, fromName, subject, html, cronExpression, delay } = req.body;

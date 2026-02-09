@@ -392,7 +392,7 @@
             const fromName = document.getElementById('fromName').value.trim() || 'Esbet';
             const subject = document.getElementById('subject').value.trim();
             const htmlTemplate = document.getElementById('htmlTemplate').value.trim();
-            const delay = parseInt(document.getElementById('delay').value) || 2000;
+            const delay = parseInt(document.getElementById('delay').value) || 0;
             
             if (!subject) {
                 showToast('Konu giriniz!', 'error');
@@ -404,75 +404,35 @@
                 return;
             }
             
-            // UI güncelle
-            isSending = true;
-            shouldStop = false;
-            document.getElementById('sendBtn').classList.add('hidden');
-            document.getElementById('stopBtn').classList.remove('hidden');
-            document.getElementById('progressSection').classList.remove('hidden');
-            document.getElementById('logArea').innerHTML = '';
-            
-            let sent = 0;
-            let failed = 0;
-            const total = emails.length;
-            
-            addLog(`Gönderim başlıyor: ${total} email`, 'info');
-            
-            for (let i = 0; i < emails.length; i++) {
-                if (shouldStop) {
-                    addLog('Gönderim durduruldu!', 'error');
-                    break;
+            // Backend'de bulk gönder (sayfa kapansa bile devam eder)
+            try {
+                const res = await fetch('/api/send-bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        emails: document.getElementById('emailList').value,
+                        fromName: fromName,
+                        subject: subject,
+                        html: htmlTemplate,
+                        delay: delay
+                    })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    showToast(`Gönderim başlatıldı! ${data.total} email arka planda gönderiliyor. Railway logs'dan takip edebilirsin.`, 'success');
+                    document.getElementById('progressSection').classList.remove('hidden');
+                    document.getElementById('logArea').innerHTML = '';
+                    addLog(`Gönderim backend'de başlatıldı: ${data.total} email`, 'success');
+                    addLog('Railway logs\'dan durumu takip edebilirsin', 'info');
+                    addLog('Sayfa kapansa bile gönderim devam edecek', 'info');
+                } else {
+                    showToast('Hata: ' + data.error, 'error');
                 }
-                
-                const email = emails[i];
-                
-                try {
-                    const res = await fetch('/api/send-email', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            to: email,
-                            fromName: fromName,
-                            subject: subject,
-                            html: htmlTemplate
-                        })
-                    });
-                    
-                    const data = await res.json();
-                    
-                    if (data.success) {
-                        sent++;
-                        addLog(`✓ ${email}`, 'success');
-                    } else {
-                        failed++;
-                        addLog(`✗ ${email}: ${data.error}`, 'error');
-                    }
-                } catch (err) {
-                    failed++;
-                    addLog(`✗ ${email}: ${err.message}`, 'error');
-                }
-                
-                // Progress güncelle
-                const progress = Math.round(((i + 1) / total) * 100);
-                document.getElementById('progressBar').style.width = progress + '%';
-                document.getElementById('progressPercent').textContent = progress + '%';
-                document.getElementById('progressText').textContent = `${i + 1} / ${total}`;
-                document.getElementById('sentCount').textContent = sent;
-                document.getElementById('failedCount').textContent = failed;
-                document.getElementById('remainingCount').textContent = total - i - 1;
-                
-                // Delay (sadece 0'dan büyükse)
-                if (delay > 0 && i < emails.length - 1 && !shouldStop) {
-                    await new Promise(r => setTimeout(r, delay));
-                }
+            } catch (err) {
+                showToast('Bağlantı hatası: ' + err.message, 'error');
             }
-            
-            isSending = false;
-            document.getElementById('sendBtn').classList.remove('hidden');
-            document.getElementById('stopBtn').classList.add('hidden');
-            
-            addLog(`Tamamlandı! Başarılı: ${sent}, Başarısız: ${failed}`, 'info');
-            showToast(`Gönderim tamamlandı! ${sent} başarılı, ${failed} başarısız`, sent > failed ? 'success' : 'error');
         }
         
         function stopSending() {
