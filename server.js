@@ -15,18 +15,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// SMTP Config - Hardcoded for Alibaba DirectMail
+// SMTP Config - Hardcoded for Alibaba DirectMail (Port 80 STARTTLS)
 const SMTP_CONFIG = {
     host: 'smtpdm-ap-southeast-1.aliyuncs.com',
-    port: 465,
-    secure: true,
+    port: 80,
+    secure: false,
     auth: {
         user: 'noreply@8dayscafe.com',
         pass: 'Kx94mP72nS'
     },
     tls: {
         rejectUnauthorized: false
-    }
+    },
+    connectionTimeout: 60000,
+    greetingTimeout: 60000,
+    socketTimeout: 60000
 };
 
 // Data directory
