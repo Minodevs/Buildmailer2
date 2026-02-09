@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Email Sender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 9999;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .toast.success { background: #10b981; }
+        .toast.error { background: #ef4444; }
+        .toast.info { background: #3b82f6; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 py-4">
+        <div class="max-w-7xl mx-auto px-4 flex items-center justify-between">
+            <h1 class="text-2xl font-bold text-red-500">
+                <i class="fas fa-envelope mr-2"></i>Bulk Email Sender
+            </h1>
+            <div class="flex items-center gap-4">
+                <span class="text-sm text-gray-400">
+                    SMTP: <%= smtpConfig.host %>:<%= smtpConfig.port %>
+                </span>
+                <button onclick="testSMTP()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm">
+                    <i class="fas fa-plug mr-1"></i>Test SMTP
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto py-8 px-4">
+        
+        <!-- Tabs -->
+        <div class="flex gap-4 mb-8">
+            <button onclick="showTab('send')" id="tabSend" class="px-6 py-3 rounded-lg bg-red-600 font-bold">
+                <i class="fas fa-paper-plane mr-2"></i>Hemen Gönder
+            </button>
+            <button onclick="showTab('schedule')" id="tabSchedule" class="px-6 py-3 rounded-lg bg-gray-700 font-bold">
+                <i class="fas fa-clock mr-2"></i>Zamanla (Cron)
+            </button>
+            <button onclick="showTab('jobs')" id="tabJobs" class="px-6 py-3 rounded-lg bg-gray-700 font-bold">
+                <i class="fas fa-list mr-2"></i>Zamanlanmış İşler
+            </button>
+        </div>
+        
+        <!-- Send Tab -->
+        <div id="sendTab">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                <!-- Sol Panel: Email Listesi -->
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-users mr-2 text-blue-400"></i>Email Listesi
+                    </h2>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm text-gray-400 mb-2">Email Adresleri (her satıra bir email)</label>
+                        <textarea id="emailList" rows="12" 
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white text-sm font-mono resize-none focus:border-blue-500 focus:outline-none"
+                            placeholder="ornek@gmail.com&#10;test@hotmail.com&#10;user@yahoo.com"></textarea>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <span id="emailCount" class="text-sm text-gray-400">0 email</span>
+                        <button onclick="clearEmails()" class="text-red-400 hover:text-red-300 text-sm">
+                            <i class="fas fa-trash mr-1"></i>Temizle
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Sağ Panel: Email Ayarları -->
+                <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-cog mr-2 text-green-400"></i>Email Ayarları
+                    </h2>
+                    
+                    <!-- From Name -->
+                    <div class="mb-4">
+                        <label class="block text-sm text-gray-400 mb-2">Gönderen Adı</label>
+                        <input type="text" id="fromName" value="Esbet" 
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none"
+                            placeholder="Esbet">
+                    </div>
+                    
+                    <!-- Subject -->
+                    <div class="mb-4">
+                        <label class="block text-sm text-gray-400 mb-2">Konu</label>
+                        <input type="text" id="subject" value="Esbet - 500TL Deneme Bonusu" 
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none"
+                            placeholder="Email konusu">
+                    </div>
+                    
+                    <!-- Delay -->
+                    <div class="mb-4">
+                        <label class="block text-sm text-gray-400 mb-2">Gönderim Aralığı (ms)</label>
+                        <input type="number" id="delay" value="2000" min="500" max="60000"
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none"
+                            placeholder="2000">
+                        <span class="text-xs text-gray-500">Minimum 500ms, önerilen 2000ms</span>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <!-- HTML Template -->
+            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 mt-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-bold flex items-center">
+                        <i class="fas fa-code mr-2 text-purple-400"></i>HTML Template
+                    </h2>
+                    <button onclick="previewTemplate()" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm">
+                        <i class="fas fa-eye mr-1"></i>Önizleme
+                    </button>
+                </div>
+                
+                <textarea id="htmlTemplate" rows="15" 
+                    class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white text-sm font-mono resize-none focus:border-blue-500 focus:outline-none"
+                    placeholder="HTML template'inizi buraya yapıştırın..."></textarea>
+                
+                <div class="mt-2 text-xs text-gray-500">
+                    <i class="fas fa-info-circle mr-1"></i>UTF-8 encoding desteklenir. Türkçe karakterler sorunsuz çalışır.
+                </div>
+            </div>
+            
+            <!-- Gönderim Butonu -->
+            <div class="mt-8 flex items-center justify-center gap-4">
+                <button onclick="startSending()" id="sendBtn" 
+                    class="bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-700 hover:to-orange-600 px-12 py-4 rounded-xl text-xl font-bold shadow-lg">
+                    <i class="fas fa-paper-plane mr-2"></i>Gönderimi Başlat
+                </button>
+                <button onclick="stopSending()" id="stopBtn" 
+                    class="bg-gray-600 hover:bg-gray-700 px-8 py-4 rounded-xl text-xl font-bold hidden">
+                    <i class="fas fa-stop mr-2"></i>Durdur
+                </button>
+            </div>
+            
+            <!-- Progress -->
+            <div id="progressSection" class="bg-gray-800 rounded-xl p-6 border border-gray-700 mt-8 hidden">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-chart-line mr-2 text-yellow-400"></i>Gönderim Durumu
+                </h2>
+                
+                <div class="mb-4">
+                    <div class="flex justify-between text-sm mb-2">
+                        <span id="progressText">0 / 0</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-4">
+                        <div id="progressBar" class="bg-gradient-to-r from-green-500 to-blue-500 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div class="bg-gray-700 rounded-lg p-4">
+                        <div id="sentCount" class="text-2xl font-bold text-green-400">0</div>
+                        <div class="text-sm text-gray-400">Başarılı</div>
+                    </div>
+                    <div class="bg-gray-700 rounded-lg p-4">
+                        <div id="failedCount" class="text-2xl font-bold text-red-400">0</div>
+                        <div class="text-sm text-gray-400">Başarısız</div>
+                    </div>
+                    <div class="bg-gray-700 rounded-lg p-4">
+                        <div id="remainingCount" class="text-2xl font-bold text-yellow-400">0</div>
+                        <div class="text-sm text-gray-400">Kalan</div>
+                    </div>
+                </div>
+                
+                <!-- Log -->
+                <div class="mt-4">
+                    <h3 class="text-sm font-bold text-gray-400 mb-2">Log</h3>
+                    <div id="logArea" class="bg-gray-900 rounded-lg p-3 h-40 overflow-y-auto text-xs font-mono"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Schedule Tab -->
+        <div id="scheduleTab" class="hidden">
+            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <h2 class="text-xl font-bold mb-6 flex items-center">
+                    <i class="fas fa-clock mr-2 text-yellow-400"></i>Zamanlanmış Gönderim (Cron Job)
+                </h2>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Email Listesi</label>
+                        <textarea id="scheduleEmails" rows="8" 
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white text-sm font-mono resize-none focus:border-blue-500 focus:outline-none"
+                            placeholder="ornek@gmail.com&#10;test@hotmail.com"></textarea>
+                    </div>
+                    
+                    <div>
+                        <div class="mb-4">
+                            <label class="block text-sm text-gray-400 mb-2">Gönderen Adı</label>
+                            <input type="text" id="scheduleFromName" value="Esbet" 
+                                class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm text-gray-400 mb-2">Konu</label>
+                            <input type="text" id="scheduleSubject" value="Esbet - 500TL Deneme Bonusu" 
+                                class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm text-gray-400 mb-2">Cron Expression</label>
+                            <input type="text" id="scheduleCron" value="0 9 * * *" 
+                                class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white font-mono focus:border-blue-500 focus:outline-none">
+                            <div class="text-xs text-gray-500 mt-1">
+                                Örnekler: <code>0 9 * * *</code> (Her gün 09:00), <code>*/30 * * * *</code> (Her 30 dk)
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm text-gray-400 mb-2">Delay (ms)</label>
+                            <input type="number" id="scheduleDelay" value="2000" 
+                                class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <label class="block text-sm text-gray-400 mb-2">HTML Template</label>
+                    <textarea id="scheduleHtml" rows="10" 
+                        class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white text-sm font-mono resize-none focus:border-blue-500 focus:outline-none"
+                        placeholder="HTML template'inizi buraya yapıştırın..."></textarea>
+                </div>
+                
+                <div class="mt-6 text-center">
+                    <button onclick="scheduleJob()" class="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 px-12 py-4 rounded-xl text-xl font-bold shadow-lg">
+                        <i class="fas fa-clock mr-2"></i>Zamanla
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Jobs Tab -->
+        <div id="jobsTab" class="hidden">
+            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold flex items-center">
+                        <i class="fas fa-list mr-2 text-blue-400"></i>Zamanlanmış İşler
+                    </h2>
+                    <button onclick="loadJobs()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm">
+                        <i class="fas fa-refresh mr-1"></i>Yenile
+                    </button>
+                </div>
+                
+                <div id="jobsList" class="space-y-4">
+                    <p class="text-gray-400 text-center py-8">Henüz zamanlanmış iş yok</p>
+                </div>
+            </div>
+        </div>
+        
+    </main>
+
+    <!-- Preview Modal -->
+    <div id="previewModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-xl max-w-4xl max-h-[90vh] overflow-auto m-4">
+            <div class="sticky top-0 bg-gray-800 p-4 flex justify-between items-center">
+                <h3 class="text-lg font-bold">Template Önizleme</h3>
+                <button onclick="closePreview()" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div id="previewContent" class="p-0"></div>
+        </div>
+    </div>
+
+    <script>
+        let isSending = false;
+        let shouldStop = false;
+
+        // Tab switching
+        function showTab(tab) {
+            document.getElementById('sendTab').classList.add('hidden');
+            document.getElementById('scheduleTab').classList.add('hidden');
+            document.getElementById('jobsTab').classList.add('hidden');
+            document.getElementById('tabSend').classList.remove('bg-red-600');
+            document.getElementById('tabSend').classList.add('bg-gray-700');
+            document.getElementById('tabSchedule').classList.remove('bg-red-600');
+            document.getElementById('tabSchedule').classList.add('bg-gray-700');
+            document.getElementById('tabJobs').classList.remove('bg-red-600');
+            document.getElementById('tabJobs').classList.add('bg-gray-700');
+            
+            if (tab === 'send') {
+                document.getElementById('sendTab').classList.remove('hidden');
+                document.getElementById('tabSend').classList.add('bg-red-600');
+                document.getElementById('tabSend').classList.remove('bg-gray-700');
+            } else if (tab === 'schedule') {
+                document.getElementById('scheduleTab').classList.remove('hidden');
+                document.getElementById('tabSchedule').classList.add('bg-red-600');
+                document.getElementById('tabSchedule').classList.remove('bg-gray-700');
+            } else if (tab === 'jobs') {
+                document.getElementById('jobsTab').classList.remove('hidden');
+                document.getElementById('tabJobs').classList.add('bg-red-600');
+                document.getElementById('tabJobs').classList.remove('bg-gray-700');
+                loadJobs();
+            }
+        }
+
+        // Email sayısını güncelle
+        document.getElementById('emailList').addEventListener('input', updateEmailCount);
+        
+        function updateEmailCount() {
+            const emails = getEmailList();
+            document.getElementById('emailCount').textContent = emails.length + ' email';
+        }
+        
+        function getEmailList() {
+            const text = document.getElementById('emailList').value;
+            return text.split(/[\n,;]+/)
+                .map(e => e.trim().toLowerCase())
+                .filter(e => e.includes('@') && e.includes('.'));
+        }
+        
+        function clearEmails() {
+            document.getElementById('emailList').value = '';
+            updateEmailCount();
+        }
+        
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+        
+        async function testSMTP() {
+            try {
+                const res = await fetch('/api/test-smtp');
+                const data = await res.json();
+                if (data.success) {
+                    showToast('SMTP bağlantısı başarılı!', 'success');
+                } else {
+                    showToast('SMTP hatası: ' + data.message, 'error');
+                }
+            } catch (err) {
+                showToast('Bağlantı hatası: ' + err.message, 'error');
+            }
+        }
+        
+        function previewTemplate() {
+            const html = document.getElementById('htmlTemplate').value;
+            if (!html.trim()) {
+                showToast('Template boş!', 'error');
+                return;
+            }
+            document.getElementById('previewContent').innerHTML = html;
+            document.getElementById('previewModal').classList.remove('hidden');
+            document.getElementById('previewModal').classList.add('flex');
+        }
+        
+        function closePreview() {
+            document.getElementById('previewModal').classList.add('hidden');
+            document.getElementById('previewModal').classList.remove('flex');
+        }
+        
+        function addLog(message, type = 'info') {
+            const logArea = document.getElementById('logArea');
+            const time = new Date().toLocaleTimeString();
+            const color = type === 'success' ? 'text-green-400' : type === 'error' ? 'text-red-400' : 'text-gray-400';
+            logArea.innerHTML += `<div class="${color}">[${time}] ${message}</div>`;
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+        
+        async function startSending() {
+            const emails = getEmailList();
+            if (emails.length === 0) {
+                showToast('Email listesi boş!', 'error');
+                return;
+            }
+            
+            const fromName = document.getElementById('fromName').value.trim() || 'Esbet';
+            const subject = document.getElementById('subject').value.trim();
+            const htmlTemplate = document.getElementById('htmlTemplate').value.trim();
+            const delay = parseInt(document.getElementById('delay').value) || 2000;
+            
+            if (!subject) {
+                showToast('Konu giriniz!', 'error');
+                return;
+            }
+            
+            if (!htmlTemplate) {
+                showToast('HTML template giriniz!', 'error');
+                return;
+            }
+            
+            // UI güncelle
+            isSending = true;
+            shouldStop = false;
+            document.getElementById('sendBtn').classList.add('hidden');
+            document.getElementById('stopBtn').classList.remove('hidden');
+            document.getElementById('progressSection').classList.remove('hidden');
+            document.getElementById('logArea').innerHTML = '';
+            
+            let sent = 0;
+            let failed = 0;
+            const total = emails.length;
+            
+            addLog(`Gönderim başlıyor: ${total} email`, 'info');
+            
+            for (let i = 0; i < emails.length; i++) {
+                if (shouldStop) {
+                    addLog('Gönderim durduruldu!', 'error');
+                    break;
+                }
+                
+                const email = emails[i];
+                
+                try {
+                    const res = await fetch('/api/send-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            to: email,
+                            fromName: fromName,
+                            subject: subject,
+                            html: htmlTemplate
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                        sent++;
+                        addLog(`✓ ${email}`, 'success');
+                    } else {
+                        failed++;
+                        addLog(`✗ ${email}: ${data.error}`, 'error');
+                    }
+                } catch (err) {
+                    failed++;
+                    addLog(`✗ ${email}: ${err.message}`, 'error');
+                }
+                
+                // Progress güncelle
+                const progress = Math.round(((i + 1) / total) * 100);
+                document.getElementById('progressBar').style.width = progress + '%';
+                document.getElementById('progressPercent').textContent = progress + '%';
+                document.getElementById('progressText').textContent = `${i + 1} / ${total}`;
+                document.getElementById('sentCount').textContent = sent;
+                document.getElementById('failedCount').textContent = failed;
+                document.getElementById('remainingCount').textContent = total - i - 1;
+                
+                // Delay
+                if (i < emails.length - 1 && !shouldStop) {
+                    await new Promise(r => setTimeout(r, delay));
+                }
+            }
+            
+            isSending = false;
+            document.getElementById('sendBtn').classList.remove('hidden');
+            document.getElementById('stopBtn').classList.add('hidden');
+            
+            addLog(`Tamamlandı! Başarılı: ${sent}, Başarısız: ${failed}`, 'info');
+            showToast(`Gönderim tamamlandı! ${sent} başarılı, ${failed} başarısız`, sent > failed ? 'success' : 'error');
+        }
+        
+        function stopSending() {
+            shouldStop = true;
+            showToast('Gönderim durduruluyor...', 'info');
+        }
+        
+        async function scheduleJob() {
+            const emails = document.getElementById('scheduleEmails').value.trim();
+            const fromName = document.getElementById('scheduleFromName').value.trim();
+            const subject = document.getElementById('scheduleSubject').value.trim();
+            const html = document.getElementById('scheduleHtml').value.trim();
+            const cronExpression = document.getElementById('scheduleCron').value.trim();
+            const delay = parseInt(document.getElementById('scheduleDelay').value) || 2000;
+            
+            if (!emails || !subject || !html || !cronExpression) {
+                showToast('Tüm alanları doldurun!', 'error');
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/schedule', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ emails, fromName, subject, html, cronExpression, delay })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    showToast('İş zamanlandı!', 'success');
+                    showTab('jobs');
+                } else {
+                    showToast('Hata: ' + data.error, 'error');
+                }
+            } catch (err) {
+                showToast('Hata: ' + err.message, 'error');
+            }
+        }
+        
+        async function loadJobs() {
+            try {
+                const res = await fetch('/api/jobs');
+                const data = await res.json();
+                
+                const container = document.getElementById('jobsList');
+                
+                if (data.jobs && data.jobs.length > 0) {
+                    container.innerHTML = data.jobs.map(job => `
+                        <div class="bg-gray-700 rounded-lg p-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="font-bold">${job.subject}</h3>
+                                    <p class="text-sm text-gray-400">
+                                        <i class="fas fa-clock mr-1"></i>${job.cronExpression} | 
+                                        <i class="fas fa-envelope mr-1"></i>${job.emailCount} email |
+                                        <span class="${job.status === 'active' ? 'text-green-400' : 'text-red-400'}">${job.status}</span>
+                                    </p>
+                                    <p class="text-xs text-gray-500 mt-1">
+                                        Gönderilen: ${job.totalSent} | Başarısız: ${job.totalFailed}
+                                        ${job.lastRun ? ' | Son çalışma: ' + new Date(job.lastRun).toLocaleString() : ''}
+                                    </p>
+                                </div>
+                                <div class="flex gap-2">
+                                    ${job.status === 'active' ? `
+                                        <button onclick="stopJob('${job.id}')" class="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded text-sm">
+                                            <i class="fas fa-pause"></i>
+                                        </button>
+                                    ` : ''}
+                                    <button onclick="deleteJob('${job.id}')" class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p class="text-gray-400 text-center py-8">Henüz zamanlanmış iş yok</p>';
+                }
+            } catch (err) {
+                showToast('İşler yüklenemedi: ' + err.message, 'error');
+            }
+        }
+        
+        async function stopJob(id) {
+            try {
+                const res = await fetch(`/api/jobs/${id}/stop`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('İş durduruldu', 'success');
+                    loadJobs();
+                } else {
+                    showToast('Hata: ' + data.error, 'error');
+                }
+            } catch (err) {
+                showToast('Hata: ' + err.message, 'error');
+            }
+        }
+        
+        async function deleteJob(id) {
+            if (!confirm('Bu işi silmek istediğinize emin misiniz?')) return;
+            
+            try {
+                const res = await fetch(`/api/jobs/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('İş silindi', 'success');
+                    loadJobs();
+                } else {
+                    showToast('Hata: ' + data.error, 'error');
+                }
+            } catch (err) {
+                showToast('Hata: ' + err.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
