@@ -130,13 +130,21 @@ app.get('/api/test-smtp', async (req, res) => {
 
 // API: Send single email
 app.post('/api/send-email', async (req, res) => {
+    console.log('[API] /api/send-email called');
     const { to, fromName, subject, html } = req.body;
     
+    console.log('[API] To:', to);
+    console.log('[API] FromName:', fromName);
+    console.log('[API] Subject:', subject);
+    
     if (!to || !subject || !html) {
+        console.log('[API] Missing fields');
         return res.json({ success: false, error: 'Missing required fields' });
     }
     
+    console.log('[API] Sending email...');
     const result = await sendEmail(to, fromName, subject, html);
+    console.log('[API] Result:', result);
     res.json(result);
 });
 
