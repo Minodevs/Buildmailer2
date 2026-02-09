@@ -239,12 +239,48 @@ app.delete('/api/jobs/:id', (req, res) => {
     }
 });
 
+// Restore cron jobs from saved data
+const restoreJobs = () => {
+    const savedJobs = loadScheduledJobs();
+    
+    for (const jobData of savedJobs) {
+        if (jobData.status === 'active') {
+            const cronJob = cron.schedule(jobData.cronExpression, async () => {
+                console.log(`[CRON] Running job ${jobData.id}`);
+                jobData.lastRun = new Date().toISOString();
+                
+                const emailList = jobData.emails.split(/[\n,;]+/)
+                    .map(e => e.trim().toLowerCase())
+                    .filter(e => e.includes('@') && e.includes('.'));
+                
+                for (const email of emailList) {
+                    const result = await sendEmail(email, jobData.fromName, jobData.subject, jobData.html);
+                    if (result.success) {
+                        jobData.totalSent++;
+                    } else {
+                        jobData.totalFailed++;
+                    }
+                    await new Promise(r => setTimeout(r, jobData.delay || 2000));
+                }
+                
+                saveScheduledJobs();
+                console.log(`[CRON] Job ${jobData.id} completed. Sent: ${jobData.totalSent}, Failed: ${jobData.totalFailed}`);
+            });
+            
+            jobData.cronJobRef = cronJob;
+            scheduledJobs.push(jobData);
+        }
+    }
+    
+    return savedJobs.length;
+};
+
 // Start server
 app.listen(PORT, () => {
     console.log(`Bulk Email Sender running on http://localhost:${PORT}`);
     console.log(`SMTP: ${SMTP_CONFIG.host}:${SMTP_CONFIG.port}`);
     
-    // Load saved jobs on startup
-    const savedJobs = loadScheduledJobs();
-    console.log(`Loaded ${savedJobs.length} scheduled jobs`);
+    // Restore saved cron jobs on startup
+    const restoredCount = restoreJobs();
+    console.log(`Restored ${restoredCount} scheduled jobs`);
 });
