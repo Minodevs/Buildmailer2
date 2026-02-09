@@ -108,13 +108,13 @@
                             placeholder="Email konusu">
                     </div>
                     
-                    <!-- Delay -->
+                    <!-- Delay (opsiyonel) -->
                     <div class="mb-4">
-                        <label class="block text-sm text-gray-400 mb-2">Gönderim Aralığı (ms)</label>
-                        <input type="number" id="delay" value="2000" min="500" max="60000"
+                        <label class="block text-sm text-gray-400 mb-2">Gönderim Aralığı (ms) - Opsiyonel</label>
+                        <input type="number" id="delay" value="0" min="0" max="60000"
                             class="w-full bg-gray-700 border border-gray-600 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none"
-                            placeholder="2000">
-                        <span class="text-xs text-gray-500">Minimum 500ms, önerilen 2000ms</span>
+                            placeholder="0">
+                        <span class="text-xs text-gray-500">0 = Maksimum hız (SMTP limiti geçerli)</span>
                     </div>
                 </div>
                 
@@ -461,8 +461,8 @@
                 document.getElementById('failedCount').textContent = failed;
                 document.getElementById('remainingCount').textContent = total - i - 1;
                 
-                // Delay
-                if (i < emails.length - 1 && !shouldStop) {
+                // Delay (sadece 0'dan büyükse)
+                if (delay > 0 && i < emails.length - 1 && !shouldStop) {
                     await new Promise(r => setTimeout(r, delay));
                 }
             }

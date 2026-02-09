@@ -180,7 +180,9 @@ app.post('/api/schedule', (req, res) => {
             } else {
                 job.totalFailed++;
             }
-            await new Promise(r => setTimeout(r, job.delay));
+            if (job.delay > 0) {
+                await new Promise(r => setTimeout(r, job.delay));
+            }
         }
         
         saveScheduledJobs();
@@ -260,7 +262,9 @@ const restoreJobs = () => {
                     } else {
                         jobData.totalFailed++;
                     }
-                    await new Promise(r => setTimeout(r, jobData.delay || 2000));
+                    if (jobData.delay > 0) {
+                        await new Promise(r => setTimeout(r, jobData.delay));
+                    }
                 }
                 
                 saveScheduledJobs();
