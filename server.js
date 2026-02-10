@@ -89,7 +89,16 @@ const sendEmail = async (to, fromName, subject, html) => {
             from: `"${fromName || 'Esbet'}" <${SMTP_CONFIG.auth.user}>`,
             to: to,
             subject: subject,
-            html: finalHtml
+            html: finalHtml,
+            headers: {
+                // Alibaba DirectMail one-click unsubscribe (RFC 2369/8058)
+                'X-AliDM-Settings': JSON.stringify({
+                    LinkType: 'default',
+                    FilterLevel: 'default'
+                }),
+                'List-Unsubscribe': `<https://mesajio.com/unsubscribe?email=${encodeURIComponent(to)}>`,
+                'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click'
+            }
         });
         return { success: true, messageId: info.messageId };
     } catch (error) {
@@ -202,6 +211,16 @@ const sendBulkParallel = async (emailList, fromName, subject, html, parallelCoun
                     console.log(`[BULK] ✗ ${email}: ${result.error}`);
                 }
             }
+            
+            // Gmail rate limiting için chunk'lar arası 1 saniye bekle
+            if (i + parallelCount < batch.length) {
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        }
+        
+        // Batch'ler arası 2 saniye bekle
+        if (batchStart + batchSize < emailList.length) {
+            await new Promise(r => setTimeout(r, 2000));
         }
     }
     
