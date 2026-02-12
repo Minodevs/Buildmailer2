@@ -15,13 +15,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// SMTP Config - Hardcoded for Alibaba DirectMail (Port 80 STARTTLS)
+// SMTP Config - Hardcoded for Alibaba DirectMail EU Central (Port 80 STARTTLS)
 const SMTP_CONFIG = {
-    host: 'smtpdm-ap-southeast-1.aliyuncs.com',
+    host: 'smtpdm-eu-central-1.aliyuncs.com',
     port: 80,
     secure: false,
     auth: {
-        user: 'noreply@8dayscafe.com',
+        user: 'newletters.noreply@8dayscafe.com',
         pass: 'Kx94mP72nS'
     },
     tls: {
@@ -117,7 +117,7 @@ app.get('/', (req, res) => {
         },
         scheduledJobs: scheduledJobs,
         stats: {
-            parallelCount: 5,
+            parallelCount: 2,
             batchSize: 100,
             dailyLimit: 20000,
             theoreticalSpeed: '~5 email/saniye = 300 email/dakika = 18,000 email/saat',
@@ -265,8 +265,8 @@ app.post('/api/send-bulk', async (req, res) => {
     // Hemen response dön, gönderimi arka planda yap
     res.json({ success: true, message: 'Bulk send started in background', total: emailList.length });
     
-    // Background'da paralel gönder
-    sendBulkParallel(emailList, fromName, subject, html, 5);
+    // Background'da paralel gönder (warm-up için 2 paralel)
+    sendBulkParallel(emailList, fromName, subject, html, 2);
 });
 
 // API: Schedule a job
