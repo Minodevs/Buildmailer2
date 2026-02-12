@@ -15,13 +15,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// SMTP Config - Hardcoded for Alibaba DirectMail EU Central (Port 80 STARTTLS)
+// SMTP Config - Alibaba DirectMail Singapore (mesajio.me - casino OK)
 const SMTP_CONFIG = {
-    host: 'smtpdm-eu-central-1.aliyuncs.com',
+    host: 'smtpdm-ap-southeast-1.aliyun.com',
     port: 80,
     secure: false,
     auth: {
-        user: 'newletters.noreply@8dayscafe.com',
+        user: 'newletters.noreply@mesajio.me',
         pass: 'Kx94mP72nS'
     },
     tls: {
